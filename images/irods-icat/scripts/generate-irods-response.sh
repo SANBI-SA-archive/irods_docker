@@ -1,23 +1,21 @@
 #!/bin/bash
 
 # generate-irods-response.sh
-# Author: Michael J. Stealey <michael.j.stealey@gmail.com>
+# Original Author: Michael J. Stealey <michael.j.stealey@gmail.com>
+# Modified by: Peter van Heusden <pvh@sanbi.ac.za>
 
 ################################
 ### CONFIGURE iRODS SETTINGS ###
 ################################
 
-IRODS_CONFIG_FILE=/files/irods-config.yaml
+IRODS_CONFIG_FILE=$1
 
 # Refresh environment variables derived from updated config file
+mkdir /files
 sed -e "s/:[^:\/\/]/=/g;s/$//g;s/ *=/=/g" ${IRODS_CONFIG_FILE} > /files/irods-config.sh
 while read line; do export $line; done < <(cat /files/irods-config.sh)
 
-#######################
-### iRODS RPM FILES ###
-#######################
-
-RESPFILE=$1
+RESPFILE=$2
 
 echo ${SERVICE_ACCT_USERNAME} > $RESPFILE       # service account user ID
 echo ${SERVICE_ACCT_GROUP} >> $RESPFILE         # service account group ID

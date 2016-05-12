@@ -1,7 +1,7 @@
 version: '2'
 services:
   irods-icat:
-    image: irodstest
+    image: pvanheus/irods-icat
     container_name: irods-icat
     volumes_from:
       - appstack-data

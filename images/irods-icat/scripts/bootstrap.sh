@@ -2,19 +2,16 @@
 FIRSTRUN_DONE=/conf/irods-icat-firstrundone.txt
 
 echo ">>>"`basename $0`
-echo ">>> testing for first run" 	
 
 IRODS_HOME_DIR="/home/irods"
 
-# config-existing-irods.sh
-# Author: Michael Stealey <michael.j.stealey@gmail.com>
-
-SERVICE_ACCOUNT_CONFIG_FILE="/etc/irods/service_account.config"
 IRODS_INSTALL_DIR="/var/lib/irods"
 
 IRODS_CONFIG_SH_FILE='irods-config.sh'
 IRODS_CONFIG_FILE="irods-config.yaml"
 IRODS_SETUP_FILE='setup_responses'
+
+sed -e "s/:[^:\/\/]/=/g;s/$//g;s/ *=/=/g" /conf/$IRODS_CONFIG_FILE > /conf/$IRODS_CONFIG_SH_FILE
 
 . /conf/$IRODS_CONFIG_SH_FILE
 
@@ -24,33 +21,47 @@ MYACCTNAME=`echo "${SERVICE_ACCT_USERNAME}" | sed -e "s/\///g"`
 # get group name
 MYGROUPNAME=`echo "${SERVICE_ACCT_GROUP}" | sed -e "s/\///g"`
 
+# wait for postgres server to spin up
+echo "Wait for DB server to be ready"
+/usr/local/bin/waitforit.sh irods-db:5432
+
 if [[ ! -e $FIRSTRUN_DONE ]] ; then
 
   echo "running first setup"
 
-  if [[ -e /conf/$IRODS_CONFIG_FILE ]] ; then
-      echo "*** Importing existing configuration file: /conf/${IRODS_CONFIG_FILE} ***"
-      cp /conf/${IRODS_CONFIG_FILE} /files;
-  else
-      echo "*** Generating configuration file: /files/${IRODS_CONFIG_FILE} ***"
-      /scripts/generate-config-file.sh /files/${IRODS_CONFIG_FILE}
-      cp /files/${IRODS_CONFIG_FILE} /conf;
-  fi
-
-  # echo "running irods package postinstall"
-  # /var/lib/irods/packaging/postinstall.sh /var/lib/irods icat
-
   # generate configuration responses
   echo "generating responses file"
-  /scripts/generate-irods-response.sh /files/$IRODS_SETUP_FILE
+  /scripts/generate-irods-response.sh /conf/$IRODS_CONFIG_FILE /files/$IRODS_SETUP_FILE
 
-  # wait for postgres server to spin up
-  /usr/local/bin/waitforit.sh irods-db:5432
+  echo "setting up ICAT database"
 
-  # set up the iCAT database
-  echo "setting up database"
-  /scripts/setup-irods-db-admin.sh /files/$IRODS_SETUP_FILE
+  SECRETS_DIRECTORY='/root/.secret'
+  SECRETS_FILE="${SECRETS_DIRECTORY}/secrets.yaml"
 
+  # PGSETUP_POSTGRES_PASSWORD is set externally, in docker-compose.yml
+  PGPASSWORD=${PGSETUP_POSTGRES_PASSWORD}
+  export PGPASSWORD
+
+  # Rename existing database to ICAT - not needed anymore
+  #psql -U postgres -h ${HOSTNAME_OR_IP} -c "ALTER DATABASE \"${PGSETUP_DATABASE_NAME}\" RENAME TO \"ICAT\""
+  # Create irods database user and grant all privileges to that user
+  psql -U postgres -h ${HOSTNAME_OR_IP} -c "CREATE USER ${DATABASE_USER} WITH PASSWORD '${DATABASE_PASSWORD}'"
+  psql -U postgres -h ${HOSTNAME_OR_IP} -c "GRANT ALL PRIVILEGES ON DATABASE \"ICAT\" TO ${DATABASE_USER}"
+
+  # Update secrets file with new information - not needed anymore
+  #sed -i "s/${PGSETUP_DATABASE_NAME}/ICAT/g" $SECRETS_FILE
+
+  cat << EOF > $SECRETS_FILE
+  PGSETUP_DATABASE_NAME: ICAT
+  PGSETUP_POSTGRES_PASSWORD: $PGSETUP_POSTGRES_PASSWORD
+  IRODS_DB_ADMIN_USER: $DATABASE_USER
+  IRODS_DB_ADMIN_PASS: $DATABASE_PASSWORD
+EOF
+
+  # Refresh environment variables derived from updated secrets
+  sed -e "s/:[^:\/\/]/=/g;s/$//g;s/ *=/=/g" $SECRETS_FILE > $SECRETS_DIRECTORY/secrets.sh
+
+  # copy in place files and templates
   ( cd $IRODS_INSTALL_DIR/packaging
     cp server_config.json.template server_config.json
     cp database_config.json.template database_config.json
@@ -64,44 +75,32 @@ if [[ ! -e $FIRSTRUN_DONE ]] ; then
 
   . /root/.secret/secrets.sh
 
+  # alternatives here: either echo all these variables to setup_irods.sh
   # echo $MYACCTNAME $MYGROUPNAME $IRODS_ZONE $IRODS_PORT $RANGE_BEGIN $RANGE_END $VAULT_DIRECTORY $NEGOTIATION_KEY \
   #      $CONTROL_PLANE_PORT $CONTROL_PLANE_KEY $SCHEMA_VALIDATION_BASE_URI $ADMINISTRATOR_USERNAME $ADMINISTRATOR_PASSWORD yes \
   #     irods-db 5432 ICAT $IRODS_DB_ADMIN_USER $IRODS_DB_ADMIN_PASS yes 
+  # or use a "responses file" and cat that to setup_irods.sh
+  # either way this needs to change if setup_irods.sh changes
   cat /files/$IRODS_SETUP_FILE | $IRODS_INSTALL_DIR/packaging/setup_irods.sh
 
   chown -R $MYACCTNAME:$MYGROUPNAME $IRODS_INSTALL_DIR
 
+  echo "*:*:*:${DATABASE_USER}:${DATABASE_PASSWORD}" > /home/irods/.pgpass
+  chown $MYACCTNAME:$MYGROUPNAME /home/irods/.pgpass
+  chmod 600 /home/irods/.pgpass
+
   # change irods user's irods_environment.json file to point to localhost, since it was configured with a transient Docker container
   # sed -i 's/"irods_host".*/"irods_host": "localhost",/g' $IRODS_HOME_DIR/.irods/irods_environment.json
   
+  gosu $MYACCTNAME perl $IRODS_INSTALL_DIR/iRODS/irodsctl stop
   touch $FIRSTRUN_DONE
 fi
 
-# set permissions on iRODS authentication mechanisms
-chmod 4755 ${IRODS_INSTALL_DIR}/iRODS/server/bin/PamAuthCheck
-chmod 4755 /usr/bin/genOSAuth
+# start and stop server to check it is working
+gosu $MYACCTNAME perl $IRODS_INSTALL_DIR/iRODS/irodsctl start
+/usr/local/bin/waitforit.sh localhost:$IRODS_PORT
+gosu $MYACCTNAME perl $IRODS_INSTALL_DIR/iRODS/irodsctl stop
+sleep 6
+echo "Starting iRODS server"
+exec gosu $MYACCTNAME sh -c "cd $IRODS_INSTALL_DIR/iRODS/server/bin ; $IRODS_INSTALL_DIR/iRODS/server/bin/irodsServer -u"
 
-chown ${MYACCTNAME}:${MYGROUPNAME} /var/lib/irods/iRODS/server/log
-
-# start iRODS server as user irods
-# su ${MYACCTNAME} <<EOF
-# /var/lib/irods/iRODS/irodsctl restart
-# while read line; do iadmin modresc ${line} host `hostname`; done < <(ilsresc)
-# EOF
-
-# OPTIONAL: Install irods-dev
-#rpm -i $(ls -l | tr -s ' ' | grep irods-dev | cut -d ' ' -f 9)
-# Install irods-runtime
-#rpm -i $(ls -l | tr -s ' ' | grep irods-runtime | cut -d ' ' -f 9)
-# Install irods-microservice-plugins
-#rpm -i $(ls -l | tr -s ' ' | grep irods-microservice-plugins | cut -d ' ' -f 9)
-
-
-
-# Keep container in a running state
-/usr/bin/tail -f /dev/null
-
-
-
-
-##########################

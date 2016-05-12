@@ -1,4 +1,4 @@
-FROM alpine:latest
+FROM debian:jessie
 MAINTAINER Peter van Heusden <pvh@sanbi.ac.za>
 
 ADD config-files /config-files

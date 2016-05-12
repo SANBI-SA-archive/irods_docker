@@ -1,4 +1,4 @@
-FROM ubuntu:14.04
+FROM debian:jessie
 MAINTAINER Peter van Heusden <pvh@sanbi.ac.za>
 
 RUN apt-get update
@@ -16,23 +16,6 @@ RUN gpg --keyserver pool.sks-keyservers.net --recv-keys B42F6819007F00F88E364FD4
 RUN apt-get install -y libc6 sudo libssl1.0.0 libfuse2 libjson-perl perl python openssl python-psutil python-requests lsof python-jsonschema
 RUN apt-get install -y unixodbc odbc-postgresql postgresql-client super libc6 perl
 
-# Modify authd config file for xinetd.d
-# RUN cp /etc/xinetd.d/auth /var/tmp/auth
-# RUN sed "s/-E//g" /etc/xinetd.d/auth > /var/tmp/auth
-# RUN cp /var/tmp/auth /etc/xinetd.d/auth
-# RUN cat /etc/xinetd.d/auth
-# RUN rm /var/tmp/auth
-
-# Set proper run level for authd
-# RUN /sbin/chkconfig --level=3 auth on
-
-# Restart xinitd
-# RUN /etc/init.d/xinetd restart
-
-# Install iRODS RPMs - uncomment packages as required
-ADD files /files
-WORKDIR /files
-# get iRODS rpm files
 RUN wget ftp://ftp.renci.org/pub/irods/releases/4.1.8/ubuntu14/irods-icat-4.1.8-ubuntu14-x86_64.deb
 RUN dpkg -i irods-icat-4.1.8-ubuntu14-x86_64.deb
 RUN wget ftp://ftp.renci.org/pub/irods/releases/4.1.8/ubuntu14/irods-database-plugin-postgres-1.8-ubuntu14-x86_64.deb
