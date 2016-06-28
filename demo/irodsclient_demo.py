@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 # this uses python-irodsclient
-# https://github.com/iPlantCollaborativeOpenSource/python-irodsclient
+# https://github.com/irods/python-irodsclient
 
 from __future__ import print_function
 import os.path
