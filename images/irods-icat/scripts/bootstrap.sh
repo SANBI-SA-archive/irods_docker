@@ -21,6 +21,8 @@ MYACCTNAME=`echo "${SERVICE_ACCT_USERNAME}" | sed -e "s/\///g"`
 # get group name
 MYGROUPNAME=`echo "${SERVICE_ACCT_GROUP}" | sed -e "s/\///g"`
 
+sleep 10
+
 # wait for postgres server to spin up
 echo "Wait for DB server to be ready"
 /usr/local/bin/waitforit.sh irods-db:5432
