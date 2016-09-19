@@ -76,6 +76,18 @@ EOF
 
   . /root/.secret/secrets.sh
 
+  echo "*:*:*:${DATABASE_USER}:${DATABASE_PASSWORD}" > /home/irods/.pgpass
+  chown $MYACCTNAME /home/irods/.pgpass
+  chmod 600 /home/irods/.pgpass
+
+  touch /home/irods/.odbc.ini
+  chown $MYACCTNAME /home/irods/.odbc.ini
+  
+  mkdir /home/irods/.irods
+  sed -i "s/ADMINISTRATOR_USERNAME/$ADMINISTRATOR_USERNAME/" /home/irods/.irods/irods_environment.json
+  sed -i "s/IRODS_ZONE/$IRODS_ZONE/" /home/irods/.irods/irods_environment.json
+  chown -R $MYACCTNAME /home/irods/.irods
+
   # alternatives here: either echo all these variables to setup_irods.sh
   # echo $MYACCTNAME $MYGROUPNAME $IRODS_ZONE $IRODS_PORT $RANGE_BEGIN $RANGE_END $VAULT_DIRECTORY $NEGOTIATION_KEY \
   #      $CONTROL_PLANE_PORT $CONTROL_PLANE_KEY $SCHEMA_VALIDATION_BASE_URI $ADMINISTRATOR_USERNAME $ADMINISTRATOR_PASSWORD yes \
@@ -84,11 +96,8 @@ EOF
   # either way this needs to change if setup_irods.sh changes
   cat /files/$IRODS_SETUP_FILE | $IRODS_INSTALL_DIR/packaging/setup_irods.sh
 
-  chown -R $MYACCTNAME:$MYGROUPNAME $IRODS_INSTALL_DIR
-
-  echo "*:*:*:${DATABASE_USER}:${DATABASE_PASSWORD}" > /home/irods/.pgpass
-  chown $MYACCTNAME:$MYGROUPNAME /home/irods/.pgpass
-  chmod 600 /home/irods/.pgpass
+  chown -R $MYACCTNAME $IRODS_INSTALL_DIR
+  chown -R $MYACCTNAME /etc/irods
 
   # change irods user's irods_environment.json file to point to localhost, since it was configured with a transient Docker container
   # sed -i 's/"irods_host".*/"irods_host": "localhost",/g' $IRODS_HOME_DIR/.irods/irods_environment.json
@@ -99,7 +108,7 @@ fi
 
 # start and stop server to check it is working
 gosu $MYACCTNAME perl $IRODS_INSTALL_DIR/iRODS/irodsctl start
-/usr/local/bin/waitforit.sh -d ICAT localhost:$IRODS_PORT
+/usr/local/bin/waitforit.sh localhost:$IRODS_PORT
 gosu $MYACCTNAME perl $IRODS_INSTALL_DIR/iRODS/irodsctl stop
 sleep 6
 echo "Starting iRODS server"

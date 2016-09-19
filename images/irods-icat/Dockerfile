@@ -16,6 +16,7 @@ RUN gpg --keyserver pool.sks-keyservers.net --recv-keys B42F6819007F00F88E364FD4
 RUN apt-get install -y libc6 sudo libssl1.0.0 libfuse2 libjson-perl perl python openssl python-psutil python-requests lsof python-jsonschema
 RUN apt-get install -y unixodbc odbc-postgresql postgresql-client super libc6 perl
 
+RUN adduser --system --disabled-password irods
 RUN wget ftp://ftp.renci.org/pub/irods/releases/4.1.8/ubuntu14/irods-icat-4.1.8-ubuntu14-x86_64.deb
 RUN dpkg -i irods-icat-4.1.8-ubuntu14-x86_64.deb
 RUN wget ftp://ftp.renci.org/pub/irods/releases/4.1.8/ubuntu14/irods-database-plugin-postgres-1.8-ubuntu14-x86_64.deb
@@ -31,6 +32,9 @@ RUN chmod a+x *.sh
 
 ADD waitforit.sh /usr/local/bin/waitforit.sh
 RUN chmod a+x /usr/local/bin/waitforit.sh
+
+RUN mkdir /home/irods/.irods
+ADD files/irods_environment.json /home/irods/.irods/irods_environment.json
 
 # Open firewall for iRODS
 EXPOSE 1247 1248 20000-20199
