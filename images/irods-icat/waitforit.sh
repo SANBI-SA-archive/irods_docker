@@ -38,6 +38,8 @@ Usage:
     -q | --quiet                Don't output any status messages
     -t TIMEOUT | --timeout=TIMEOUT
                                 Timeout in seconds, zero for no timeout
+    -d NAME | --db=NAME	        Wait for connection to PostgreSQL database (set password in PGPASSWORD environment variable)
+    -u NAME | --dbuser=USER     PostgreSQL database username (default 'postgres')
     -- COMMAND ARGS             Execute command with args after the test finishes
 USAGE
     exit 1
@@ -46,18 +48,22 @@ USAGE
 wait_for()
 {
     if [[ $TIMEOUT -gt 0 ]]; then
-        echoerr "$cmdname: waiting $TIMEOUT seconds for $HOST:$PORT"
+        echoerr "$cmdname: waiting $TIMEOUT seconds for $HOST:$PORT:$DBNAME"
     else
-        echoerr "$cmdname: waiting for $HOST:$PORT without a timeout"
+        echoerr "$cmdname: waiting for $HOST:$PORT:$DBNAME without a timeout"
     fi
     start_ts=$(date +%s)
     while :
     do
-        (echo > /dev/tcp/$HOST/$PORT) >/dev/null 2>&1
+        if [[ -n "$DBNAME" ]] ; then 
+          (echo '\dt' | psql -d $DBNAME -U ${DBUSER:-postgres} -h ${HOST:-localhost} -p ${PORT:-5432}) >/dev/null 2>&1
+        else
+          (echo > /dev/tcp/$HOST/$PORT) >/dev/null 2>&1
+        fi
         result=$?
         if [[ $result -eq 0 ]]; then
             end_ts=$(date +%s)
-            echoerr "$cmdname: $HOST:$PORT is available after $((end_ts - start_ts)) seconds"
+            echoerr "$cmdname: $HOST:$PORT:$DBNAME is available after $((end_ts - start_ts)) seconds"
             break
         fi
         sleep 1
@@ -132,6 +138,23 @@ do
         TIMEOUT="${1#*=}"
         shift 1
         ;;
+        -d)
+        DBNAME="$2"
+        if [[ $DBNAME == "" ]]; then break; fi
+        shift 2
+        ;;
+        --dbname=*)
+        DBNAME="${1#*=}"
+        shift 1
+        ;;
+        -u)
+        DBUSER="$2"
+        if [[ $DBUSER == "" ]]; then break; fi
+        shift 2
+        ;;
+        --dbuser=*)
+        DBUSER="${1#*=}"
+        ;;
         --)
         shift
         CLI="$@"
@@ -147,8 +170,11 @@ do
     esac
 done
 
-if [[ "$HOST" == "" || "$PORT" == "" ]]; then
-    echoerr "Error: you need to provide a host and port to test."
+export DBNAME
+
+if [[ -z "$DBNAME" ]] ; then echo "yes" ; fi 
+if [[ -z "$DBNAME" && ( "$HOST" == "" || "$PORT" == "" ) ]]; then
+    echoerr "Error: you need to provide either a host and port or PostgreSQL database name to test."
     usage
 fi
 
