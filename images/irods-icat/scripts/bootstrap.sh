@@ -21,10 +21,9 @@ MYACCTNAME=`echo "${SERVICE_ACCT_USERNAME}" | sed -e "s/\///g"`
 # get group name
 MYGROUPNAME=`echo "${SERVICE_ACCT_GROUP}" | sed -e "s/\///g"`
 
-sleep 10
-
 # wait for postgres server to spin up
 echo "Wait for DB server to be ready"
+export PGPASSWORD=$PGSETUP_POSTGRES_PASSWORD
 /usr/local/bin/waitforit.sh -d ICAT irods-db:5432
 
 if [[ ! -e $FIRSTRUN_DONE ]] ; then
@@ -100,7 +99,7 @@ fi
 
 # start and stop server to check it is working
 gosu $MYACCTNAME perl $IRODS_INSTALL_DIR/iRODS/irodsctl start
-/usr/local/bin/waitforit.sh localhost:$IRODS_PORT
+/usr/local/bin/waitforit.sh -d ICAT localhost:$IRODS_PORT
 gosu $MYACCTNAME perl $IRODS_INSTALL_DIR/iRODS/irodsctl stop
 sleep 6
 echo "Starting iRODS server"

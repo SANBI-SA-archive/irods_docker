@@ -1,14 +1,14 @@
 version: '2'
 services:
   irods-icat:
-    image: pvanheus/irods-icat
+    image: pvanheus/irods-icat:latest
     container_name: irods-icat
     volumes_from:
       - appstack-data
     links:
       - irods-db
     ports:
-      - 1247
+      - 1247:1247
     environment:
       - PGSETUP_POSTGRES_PASSWORD=something
     depends_on:
