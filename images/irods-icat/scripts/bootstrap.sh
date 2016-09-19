@@ -25,7 +25,7 @@ sleep 10
 
 # wait for postgres server to spin up
 echo "Wait for DB server to be ready"
-/usr/local/bin/waitforit.sh irods-db:5432
+/usr/local/bin/waitforit.sh -d ICAT irods-db:5432
 
 if [[ ! -e $FIRSTRUN_DONE ]] ; then
 
