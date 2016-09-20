@@ -172,7 +172,6 @@ done
 
 export DBNAME
 
-if [[ -z "$DBNAME" ]] ; then echo "yes" ; fi 
 if [[ -z "$DBNAME" && ( "$HOST" == "" || "$PORT" == "" ) ]]; then
     echoerr "Error: you need to provide either a host and port or PostgreSQL database name to test."
     usage

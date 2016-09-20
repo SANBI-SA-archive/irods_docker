@@ -23,8 +23,17 @@ MYGROUPNAME=`echo "${SERVICE_ACCT_GROUP}" | sed -e "s/\///g"`
 
 # wait for postgres server to spin up
 echo "Wait for DB server to be ready"
+OLD_PGPASSWORD=""
+if [ -n "$PGPASSWORD" ] ; then 
+  OLD_PGPASSWORD=$PGPASSWORD
+fi
 export PGPASSWORD=$PGSETUP_POSTGRES_PASSWORD
 /usr/local/bin/waitforit.sh -d ICAT irods-db:5432
+if [ -N "$OLD_PGPASSWORD" ] ; then
+  PGPASSWORD=$OLD_PGPASSWORD
+else
+  unset PGPASSWORD
+fi
 
 if [[ ! -e $FIRSTRUN_DONE ]] ; then
 
@@ -48,6 +57,7 @@ if [[ ! -e $FIRSTRUN_DONE ]] ; then
   # Create irods database user and grant all privileges to that user
   psql -U postgres -h ${HOSTNAME_OR_IP} -c "CREATE USER ${DATABASE_USER} WITH PASSWORD '${DATABASE_PASSWORD}'"
   psql -U postgres -h ${HOSTNAME_OR_IP} -c "GRANT ALL PRIVILEGES ON DATABASE \"ICAT\" TO ${DATABASE_USER}"
+  unset PGPASSWORD
 
   # Update secrets file with new information - not needed anymore
   #sed -i "s/${PGSETUP_DATABASE_NAME}/ICAT/g" $SECRETS_FILE
@@ -61,6 +71,15 @@ EOF
 
   # Refresh environment variables derived from updated secrets
   sed -e "s/:[^:\/\/]/=/g;s/$//g;s/ *=/=/g" $SECRETS_FILE > $SECRETS_DIRECTORY/secrets.sh
+
+  mkdir /home/irods/.irods
+  IRODS_USER_ENVIRONMENT_FILE=/home/irods/.irods/irods_environment.json
+  echo "Creating $IRODS_USER_ENVIRONMENT_FILE"
+  echo -e '{\n   "irods_user_name": "ADMINISTRATOR_USERNAME",\n  "irods_host": "localhost",\n  "irods_port": 1247,\n  "irods_zone_name": "IRODS_ZONE"\n}' > $IRODS_USER_ENVIRONMENT_FILE
+
+  sed -i "s/ADMINISTRATOR_USERNAME/$ADMINISTRATOR_USERNAME/" $IRODS_USER_ENVIRONMENT_FILE
+  sed -i "s/IRODS_ZONE/$IRODS_ZONE/" $IRODS_USER_ENVIRONMENT_FILE
+  cat $IRODS_USER_ENVIRONMENT_FILE
 
   # copy in place files and templates
   ( cd $IRODS_INSTALL_DIR/packaging
@@ -80,13 +99,21 @@ EOF
   chown $MYACCTNAME /home/irods/.pgpass
   chmod 600 /home/irods/.pgpass
 
-  touch /home/irods/.odbc.ini
+  echo "*:*:*:${DATABASE_USER}:${DATABASE_PASSWORD}" > /root/.pgpass
+  chmod 600 /root/.pgpass
+
+  echo -e "[postgres]\nDriver=/usr/lib64/psqlodbc.so\nDebug=0\nCommLog=0\nServername=${HOSTNAME_OR_IP}\nDatabase=ICAT\nReadOnly=no\nKsqo=0\nPort=5432" >/home/irods/.odbc.ini
   chown $MYACCTNAME /home/irods/.odbc.ini
   
-  mkdir /home/irods/.irods
-  sed -i "s/ADMINISTRATOR_USERNAME/$ADMINISTRATOR_USERNAME/" /home/irods/.irods/irods_environment.json
-  sed -i "s/IRODS_ZONE/$IRODS_ZONE/" /home/irods/.irods/irods_environment.json
-  chown -R $MYACCTNAME /home/irods/.irods
+  
+#  chown -R $MYACCTNAME /home/irods/.irods
+
+  echo "test database connectivity"
+  gosu $MYACCTNAME sh -c "echo '\dt' | psql -U irods -h irods-db ICAT" >/dev/null 2>&1
+  if [[ $? -ne 0 ]] ; then
+    echo "Failed to connect to database, setup will fail" >&2
+    exit 1
+  fi
 
   # alternatives here: either echo all these variables to setup_irods.sh
   # echo $MYACCTNAME $MYGROUPNAME $IRODS_ZONE $IRODS_PORT $RANGE_BEGIN $RANGE_END $VAULT_DIRECTORY $NEGOTIATION_KEY \
@@ -96,6 +123,7 @@ EOF
   # either way this needs to change if setup_irods.sh changes
   cat /files/$IRODS_SETUP_FILE | $IRODS_INSTALL_DIR/packaging/setup_irods.sh
 
+  chown -R $MYACCTNAME /home/irods
   chown -R $MYACCTNAME $IRODS_INSTALL_DIR
   chown -R $MYACCTNAME /etc/irods
 
@@ -106,6 +134,9 @@ EOF
   touch $FIRSTRUN_DONE
 fi
 
+chown -R $MYACCTNAME /home/irods
+chown -R $MYACCTNAME $IRODS_INSTALL_DIR
+chown -R $MYACCTNAME /etc/irods
 # start and stop server to check it is working
 gosu $MYACCTNAME perl $IRODS_INSTALL_DIR/iRODS/irodsctl start
 /usr/local/bin/waitforit.sh localhost:$IRODS_PORT

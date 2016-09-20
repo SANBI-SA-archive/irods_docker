@@ -33,8 +33,8 @@ RUN chmod a+x *.sh
 ADD waitforit.sh /usr/local/bin/waitforit.sh
 RUN chmod a+x /usr/local/bin/waitforit.sh
 
-RUN mkdir /home/irods/.irods
-ADD files/irods_environment.json /home/irods/.irods/irods_environment.json
+# RUN mkdir /home/irods/.irods
+# ADD files/irods_environment.json /home/irods/.irods/irods_environment.json
 
 # Open firewall for iRODS
 EXPOSE 1247 1248 20000-20199
