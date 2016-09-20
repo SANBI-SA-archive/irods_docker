@@ -12,7 +12,3 @@ fi
 
 docker-compose up
 
-docker rm irods-icat
-docker rm compose_irods-db_1
-docker rm compose_appstack-data_1
-
