@@ -1,7 +1,0 @@
-{
-    "irods_user_name": "ADMINISTRATOR_USERNAME",
-    "irods_host": "localhost",
-    "irods_port": 1247,
-    "irods_zone_name": "IRODS_ZONE"
-}
-
